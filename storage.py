@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from sqlalchemy import text
 from datetime import datetime, timezone
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, create_engine, func, select
@@ -80,6 +80,10 @@ class PostgresStorage:
     def __init__(self, database_url: str) -> None:
         self._engine = create_engine(database_url, future=True, pool_pre_ping=True)
         self._session_factory = sessionmaker(bind=self._engine, future=True, expire_on_commit=False)
+
+        with self._engine.begin() as conn:
+            conn.execute(text("SELECT 1"))
+
         Base.metadata.create_all(self._engine)
 
     def _session(self) -> Session:
