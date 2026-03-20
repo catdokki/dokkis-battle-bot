@@ -69,6 +69,7 @@ class BattleRound:
     last_gif_user_id: int
     participant_ids: set[int] = field(default_factory=set)
     gif_messages: dict[int, GifMessage] = field(default_factory=dict)
+    status_message_id: int | None = None
 
     @classmethod
     def create(cls, channel_id: int, user_id: int, message_id: int) -> "BattleRound":
@@ -84,6 +85,7 @@ class BattleRound:
             last_gif_user_id=user_id,
             participant_ids={user_id},
             gif_messages={message_id: gif_message},
+            status_message_id=None,
         )
 
     def add_gif_message(self, message_id: int, author_id: int) -> None:
@@ -103,6 +105,7 @@ class BattleRound:
                 str(message_id): gif_message.to_dict()
                 for message_id, gif_message in self.gif_messages.items()
             },
+            "status_message_id": self.status_message_id,
         }
 
     @classmethod
@@ -117,6 +120,11 @@ class BattleRound:
                 int(message_id): GifMessage.from_dict(gif_message_data)
                 for message_id, gif_message_data in data.get("gif_messages", {}).items()
             },
+            status_message_id=(
+                int(data["status_message_id"])
+                if data.get("status_message_id") is not None
+                else None
+            ),
         )
 
 

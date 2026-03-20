@@ -10,6 +10,8 @@ from storage import JsonStorage
 @dataclass
 class BattleUpdateResult:
     round_started: bool
+    leader_changed: bool
+    timeout_reset: bool
     current_leader_user_id: int
     participant_count: int
     started_at: datetime
@@ -33,6 +35,17 @@ class BattleManager:
     def get_active_round(self) -> BattleRound | None:
         return self._active_round
 
+    def get_status_message_id(self) -> int | None:
+        if self._active_round is None:
+            return None
+        return self._active_round.status_message_id
+
+    def set_status_message_id(self, message_id: int | None) -> None:
+        if self._active_round is None:
+            return
+        self._active_round.status_message_id = message_id
+        self.save_state()
+
     def handle_gif_message(
         self,
         channel_id: int,
@@ -50,6 +63,8 @@ class BattleManager:
             self.save_state()
             return BattleUpdateResult(
                 round_started=True,
+                leader_changed=True,
+                timeout_reset=True,
                 current_leader_user_id=self._active_round.last_gif_user_id,
                 participant_count=len(self._active_round.participant_ids),
                 started_at=self._active_round.started_at,
@@ -62,14 +77,22 @@ class BattleManager:
                 f"but active round is for channel_id={self._active_round.channel_id}."
             )
 
-        self._active_round.last_activity_at = now
-        self._active_round.last_gif_user_id = user_id
+        previous_leader_user_id = self._active_round.last_gif_user_id
+        leader_changed = user_id != previous_leader_user_id
+
         self._active_round.participant_ids.add(user_id)
         self._active_round.add_gif_message(message_id=message_id, author_id=user_id)
+
+        if leader_changed:
+            self._active_round.last_gif_user_id = user_id
+            self._active_round.last_activity_at = now
+
         self.save_state()
 
         return BattleUpdateResult(
             round_started=False,
+            leader_changed=leader_changed,
+            timeout_reset=leader_changed,
             current_leader_user_id=self._active_round.last_gif_user_id,
             participant_count=len(self._active_round.participant_ids),
             started_at=self._active_round.started_at,
