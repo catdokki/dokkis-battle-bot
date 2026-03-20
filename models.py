@@ -33,10 +33,8 @@ class GifMessage:
 
     def count_non_self_reactions(self) -> int:
         total = 0
-
         for reactors in self.emoji_reactors.values():
             total += sum(1 for user_id in reactors if user_id != self.author_id)
-
         return total
 
     def to_dict(self) -> dict:
@@ -67,6 +65,7 @@ class BattleRound:
     started_at: datetime
     last_activity_at: datetime
     last_gif_user_id: int
+    round_number: int = 0
     participant_ids: set[int] = field(default_factory=set)
     gif_messages: dict[int, GifMessage] = field(default_factory=dict)
     status_message_id: int | None = None
@@ -83,6 +82,7 @@ class BattleRound:
             started_at=now,
             last_activity_at=now,
             last_gif_user_id=user_id,
+            round_number=0,
             participant_ids={user_id},
             gif_messages={message_id: gif_message},
             status_message_id=None,
@@ -100,6 +100,7 @@ class BattleRound:
             "started_at": self.started_at.isoformat(),
             "last_activity_at": self.last_activity_at.isoformat(),
             "last_gif_user_id": self.last_gif_user_id,
+            "round_number": self.round_number,
             "participant_ids": sorted(self.participant_ids),
             "gif_messages": {
                 str(message_id): gif_message.to_dict()
@@ -115,6 +116,7 @@ class BattleRound:
             started_at=datetime.fromisoformat(data["started_at"]),
             last_activity_at=datetime.fromisoformat(data["last_activity_at"]),
             last_gif_user_id=int(data["last_gif_user_id"]),
+            round_number=int(data.get("round_number", 0)),
             participant_ids={int(user_id) for user_id in data.get("participant_ids", [])},
             gif_messages={
                 int(message_id): GifMessage.from_dict(gif_message_data)
@@ -132,6 +134,8 @@ class BattleRound:
 class UserStats:
     user_id: int
     total_points: int = 0
+    total_xp: int = 0
+    level: int = 1
     rounds_joined: int = 0
     rounds_won: int = 0
     current_win_streak: int = 0
@@ -141,6 +145,8 @@ class UserStats:
         return {
             "user_id": self.user_id,
             "total_points": self.total_points,
+            "total_xp": self.total_xp,
+            "level": self.level,
             "rounds_joined": self.rounds_joined,
             "rounds_won": self.rounds_won,
             "current_win_streak": self.current_win_streak,
@@ -152,6 +158,8 @@ class UserStats:
         return cls(
             user_id=int(data["user_id"]),
             total_points=int(data.get("total_points", 0)),
+            total_xp=int(data.get("total_xp", 0)),
+            level=max(1, int(data.get("level", 1))),
             rounds_joined=int(data.get("rounds_joined", 0)),
             rounds_won=int(data.get("rounds_won", 0)),
             current_win_streak=int(data.get("current_win_streak", 0)),
