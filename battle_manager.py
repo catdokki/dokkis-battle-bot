@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from models import BattleRound
-from storage import JsonStorage
+from typing import Any
+
+# from storage import PostgresStorage
 
 
 @dataclass
@@ -19,7 +21,7 @@ class BattleUpdateResult:
 
 
 class BattleManager:
-    def __init__(self, storage: JsonStorage) -> None:
+    def __init__(self, storage: Any,) -> None:
         self._storage = storage
         self._active_round: BattleRound | None = None
 

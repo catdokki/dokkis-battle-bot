@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from models import BattleRound, UserStats
-from storage import JsonStorage
+from storage import PostgresStorage
 
 
 WIN_POINTS = 10
@@ -56,7 +56,7 @@ class RoundAwardSummary:
 
 
 class PointsManager:
-    def __init__(self, storage: JsonStorage, level_config: LevelConfig | None = None) -> None:
+    def __init__(self, storage: PostgresStorage, level_config: LevelConfig | None = None) -> None:
         self._storage = storage
         self._stats_by_user_id: dict[int, UserStats] = {}
         self._level_config = level_config or LevelConfig()

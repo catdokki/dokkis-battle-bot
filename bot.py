@@ -13,8 +13,7 @@ from gif_detector import message_contains_gif
 from points_manager import LevelConfig, PointsManager
 from role_manager import RoleManager
 from runtime_config import RuntimeConfig
-from storage import JsonStorage
-
+from storage import PostgresStorage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,8 +24,8 @@ logger = logging.getLogger("gif_battle_bot")
 settings = load_settings()
 runtime_config = RuntimeConfig(settings)
 
-battle_storage = JsonStorage(settings.state_file_path)
-user_stats_storage = JsonStorage(settings.user_stats_file_path)
+battle_storage = PostgresStorage(settings.database_url)
+user_stats_storage = battle_storage
 
 battle_manager = BattleManager(storage=battle_storage)
 points_manager = PointsManager(
@@ -105,6 +104,7 @@ def build_battle_status_embed(*, guild: discord.Guild | None, active_round, time
     embed.add_field(name="Started", value=started_line, inline=False)
     embed.add_field(name="Battle naps", value=format_discord_relative_time(deadline), inline=True)
     embed.add_field(name="Deadline", value=format_discord_full_time(deadline), inline=True)
+    embed.add_field(name="Round", value=f"#{active_round.round_number}", inline=True)
     return embed
 
 
@@ -194,6 +194,7 @@ def build_round_summary_embed(
     title = "🏁 GIF Battle Closed" if not manual_end else "🛑 GIF Battle Ended by Admin"
     subtitle = "The channel went quiet long enough. Last GIF standing takes it." if not manual_end else "An admin closed the round and locked in the current leader."
     embed = make_embed(title, subtitle)
+    embed.add_field(name="Round", value=f"#{finished_round.round_number}", inline=True)
     embed.add_field(name="Winner", value=winner_mention, inline=True)
     embed.add_field(name="Participants", value=str(len(finished_round.participant_ids)), inline=True)
     embed.add_field(name="GIFs Posted", value=str(len(finished_round.gif_messages)), inline=True)
@@ -380,8 +381,7 @@ async def on_ready() -> None:
     logger.info("Logged in as %s (%s)", bot.user, bot.user.id if bot.user else "unknown")
     logger.info("Watching battle channel: %s", settings.battle_channel_id)
     logger.info("Battle timeout: %s seconds", current_timeout_seconds())
-    logger.info("Battle state file: %s", settings.state_file_path)
-    logger.info("User stats file: %s", settings.user_stats_file_path)
+    logger.info("Database URL configured.")
     logger.info("Champ role name: %s", current_champ_role_name())
     logger.info("Chaos role name: %s", current_chaos_role_name())
 
