@@ -33,11 +33,20 @@ class BattleManager:
     def get_active_round(self) -> BattleRound | None:
         return self._active_round
 
-    def handle_gif_message(self, channel_id: int, user_id: int) -> BattleUpdateResult:
+    def handle_gif_message(
+        self,
+        channel_id: int,
+        user_id: int,
+        message_id: int,
+    ) -> BattleUpdateResult:
         now = datetime.now(timezone.utc)
 
         if self._active_round is None:
-            self._active_round = BattleRound.create(channel_id=channel_id, user_id=user_id)
+            self._active_round = BattleRound.create(
+                channel_id=channel_id,
+                user_id=user_id,
+                message_id=message_id,
+            )
             self.save_state()
             return BattleUpdateResult(
                 round_started=True,
@@ -56,6 +65,7 @@ class BattleManager:
         self._active_round.last_activity_at = now
         self._active_round.last_gif_user_id = user_id
         self._active_round.participant_ids.add(user_id)
+        self._active_round.add_gif_message(message_id=message_id, author_id=user_id)
         self.save_state()
 
         return BattleUpdateResult(
@@ -65,6 +75,55 @@ class BattleManager:
             started_at=self._active_round.started_at,
             last_activity_at=self._active_round.last_activity_at,
         )
+
+    def record_reaction_add(
+        self,
+        message_id: int,
+        reactor_user_id: int,
+        emoji_key: str,
+    ) -> bool:
+        if self._active_round is None:
+            return False
+
+        gif_message = self._active_round.gif_messages.get(message_id)
+        if gif_message is None:
+            return False
+
+        if reactor_user_id == gif_message.author_id:
+            return False
+
+        changed = gif_message.add_reaction(
+            emoji_key=emoji_key,
+            reactor_user_id=reactor_user_id,
+        )
+
+        if changed:
+            self.save_state()
+
+        return changed
+
+    def record_reaction_remove(
+        self,
+        message_id: int,
+        reactor_user_id: int,
+        emoji_key: str,
+    ) -> bool:
+        if self._active_round is None:
+            return False
+
+        gif_message = self._active_round.gif_messages.get(message_id)
+        if gif_message is None:
+            return False
+
+        changed = gif_message.remove_reaction(
+            emoji_key=emoji_key,
+            reactor_user_id=reactor_user_id,
+        )
+
+        if changed:
+            self.save_state()
+
+        return changed
 
     def get_deadline(self, timeout_seconds: int) -> datetime | None:
         if self._active_round is None:

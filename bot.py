@@ -31,6 +31,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.messages = True
+intents.reactions = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -44,6 +46,31 @@ def format_duration(total_seconds: int) -> str:
     if minutes > 0:
         return f"{minutes}m {seconds}s"
     return f"{seconds}s"
+
+
+def emoji_to_key(emoji: discord.PartialEmoji | str) -> str:
+    return str(emoji)
+
+
+def build_reaction_bonus_lines(
+    award_summary,
+    guild: discord.Guild | None,
+) -> str:
+    if not award_summary.reaction_bonus_by_user_id:
+        return ""
+
+    sorted_rows = sorted(
+        award_summary.reaction_bonus_by_user_id.items(),
+        key=lambda item: (-item[1], item[0]),
+    )
+
+    lines = ["**Crowd Favorite Bonus**"]
+    for user_id, bonus in sorted_rows:
+        member = guild.get_member(user_id) if guild else None
+        display_name = member.mention if member else f"<@{user_id}>"
+        lines.append(f"{display_name}: +{bonus}")
+
+    return "\n".join(lines) + "\n\n"
 
 
 async def announce_battle_winner() -> None:
@@ -68,11 +95,12 @@ async def announce_battle_winner() -> None:
     winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
     logger.info(
-        "Battle expired | winner=%s | participants=%s | winner_points_awarded=%s | streak=%s",
+        "Battle expired | winner=%s | participants=%s | winner_points_awarded=%s | streak=%s | reaction_bonus_users=%s",
         finished_round.last_gif_user_id,
         participant_count,
         winner_round_points,
         award_summary.winner_current_streak,
+        len(award_summary.reaction_bonus_by_user_id),
     )
 
     streak_line = ""
@@ -81,6 +109,8 @@ async def announce_battle_winner() -> None:
             f"🔥 Streak bonus: +5\n"
             f"Current streak: **{award_summary.winner_current_streak}** wins in a row\n\n"
         )
+
+    reaction_lines = build_reaction_bonus_lines(award_summary, channel.guild)
 
     await channel.send(
         f"🏁 GIF Battle over!\n"
@@ -91,6 +121,7 @@ async def announce_battle_winner() -> None:
         f"Winner earned: +{winner_round_points}\n"
         f"Everyone who joined earned: +2\n"
         f"{streak_line}"
+        f"{reaction_lines}"
         f"{winner_mention} now has **{winner_total}** Chaos Points."
     )
 
@@ -125,9 +156,10 @@ async def on_ready() -> None:
         logger.info("No active round restored from disk.")
     else:
         logger.info(
-            "Restored active round | leader=%s | participants=%s | started_at=%s | last_activity_at=%s",
+            "Restored active round | leader=%s | participants=%s | gifs=%s | started_at=%s | last_activity_at=%s",
             active_round.last_gif_user_id,
             len(active_round.participant_ids),
+            len(active_round.gif_messages),
             active_round.started_at.isoformat(),
             active_round.last_activity_at.isoformat(),
         )
@@ -148,6 +180,7 @@ async def on_message(message: discord.Message) -> None:
         result = battle_manager.handle_gif_message(
             channel_id=message.channel.id,
             user_id=message.author.id,
+            message_id=message.id,
         )
 
         logger.info(
@@ -184,6 +217,49 @@ async def on_message(message: discord.Message) -> None:
     await bot.process_commands(message)
 
 
+@bot.event
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
+    if payload.channel_id != settings.battle_channel_id:
+        return
+
+    if payload.user_id == bot.user.id if bot.user else False:
+        return
+
+    changed = battle_manager.record_reaction_add(
+        message_id=payload.message_id,
+        reactor_user_id=payload.user_id,
+        emoji_key=emoji_to_key(payload.emoji),
+    )
+
+    if changed:
+        logger.info(
+            "Reaction tracked | message_id=%s | user_id=%s | emoji=%s",
+            payload.message_id,
+            payload.user_id,
+            emoji_to_key(payload.emoji),
+        )
+
+
+@bot.event
+async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent) -> None:
+    if payload.channel_id != settings.battle_channel_id:
+        return
+
+    changed = battle_manager.record_reaction_remove(
+        message_id=payload.message_id,
+        reactor_user_id=payload.user_id,
+        emoji_key=emoji_to_key(payload.emoji),
+    )
+
+    if changed:
+        logger.info(
+            "Reaction removed | message_id=%s | user_id=%s | emoji=%s",
+            payload.message_id,
+            payload.user_id,
+            emoji_to_key(payload.emoji),
+        )
+
+
 @bot.command(name="ping")
 async def ping(ctx: commands.Context) -> None:
     await ctx.send("pong")
@@ -217,6 +293,7 @@ async def battle_status(ctx: commands.Context) -> None:
         f"🔥 Active GIF Battle\n"
         f"Leader: {leader_name}\n"
         f"Participants: {len(active_round.participant_ids)}\n"
+        f"GIFs this round: {len(active_round.gif_messages)}\n"
         f"Time remaining: {remaining_text}"
     )
 
@@ -283,6 +360,10 @@ async def end_battle(ctx: commands.Context) -> None:
             f"\nCurrent streak: **{award_summary.winner_current_streak}**"
         )
 
+    reaction_lines = ""
+    if award_summary.reaction_bonus_by_user_id:
+        reaction_lines = "\n" + build_reaction_bonus_lines(award_summary, ctx.guild).rstrip()
+
     await ctx.send(
         f"🏁 Battle ended manually.\n"
         f"Winner: {winner_name}\n"
@@ -290,6 +371,7 @@ async def end_battle(ctx: commands.Context) -> None:
         f"Winner earned: +{winner_round_points}\n"
         f"{winner_name} now has **{winner_total}** Chaos Points."
         f"{streak_line}"
+        f"{reaction_lines}"
     )
 
 

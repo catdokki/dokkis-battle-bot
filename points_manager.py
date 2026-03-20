@@ -10,6 +10,7 @@ WIN_POINTS = 10
 PARTICIPATION_POINTS = 2
 STREAK_BONUS_POINTS = 5
 STREAK_BONUS_THRESHOLD = 2
+REACTION_BONUS_CAP = 5
 
 
 @dataclass
@@ -20,6 +21,7 @@ class RoundAwardSummary:
     stats_by_user_id: dict[int, UserStats]
     streak_bonus_awarded: bool
     winner_current_streak: int
+    reaction_bonus_by_user_id: dict[int, int]
 
 
 class PointsManager:
@@ -56,6 +58,25 @@ class PointsManager:
 
         return winner_stats
 
+    def _calculate_reaction_bonus_by_user_id(
+        self,
+        battle_round: BattleRound,
+    ) -> dict[int, int]:
+        raw_reaction_counts_by_user_id: dict[int, int] = {}
+
+        for gif_message in battle_round.gif_messages.values():
+            reaction_count = gif_message.count_non_self_reactions()
+            raw_reaction_counts_by_user_id[gif_message.author_id] = (
+                raw_reaction_counts_by_user_id.get(gif_message.author_id, 0)
+                + reaction_count
+            )
+
+        return {
+            user_id: min(count, REACTION_BONUS_CAP)
+            for user_id, count in raw_reaction_counts_by_user_id.items()
+            if count > 0
+        }
+
     def award_round_points(self, battle_round: BattleRound) -> RoundAwardSummary:
         awarded_user_ids = sorted(battle_round.participant_ids)
         points_awarded_by_user_id: dict[int, int] = {}
@@ -86,7 +107,18 @@ class PointsManager:
                 + STREAK_BONUS_POINTS
             )
 
+        reaction_bonus_by_user_id = self._calculate_reaction_bonus_by_user_id(battle_round)
+
+        for user_id, reaction_bonus in reaction_bonus_by_user_id.items():
+            stats = self.get_or_create_user_stats(user_id)
+            stats.total_points += reaction_bonus
+            points_awarded_by_user_id[user_id] = (
+                points_awarded_by_user_id.get(user_id, 0) + reaction_bonus
+            )
+
         self.save_state()
+
+        users_to_include = set(awarded_user_ids) | set(reaction_bonus_by_user_id.keys())
 
         return RoundAwardSummary(
             winner_user_id=battle_round.last_gif_user_id,
@@ -94,10 +126,11 @@ class PointsManager:
             points_awarded_by_user_id=points_awarded_by_user_id,
             stats_by_user_id={
                 user_id: self._stats_by_user_id[user_id]
-                for user_id in awarded_user_ids
+                for user_id in users_to_include
             },
             streak_bonus_awarded=streak_bonus_awarded,
             winner_current_streak=winner_stats.current_win_streak,
+            reaction_bonus_by_user_id=reaction_bonus_by_user_id,
         )
 
     def get_user_stats(self, user_id: int) -> UserStats:
