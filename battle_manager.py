@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from models import BattleRound
+from storage import JsonStorage
 
 
 @dataclass
@@ -16,8 +17,15 @@ class BattleUpdateResult:
 
 
 class BattleManager:
-    def __init__(self) -> None:
+    def __init__(self, storage: JsonStorage) -> None:
+        self._storage = storage
         self._active_round: BattleRound | None = None
+
+    def load_state(self) -> None:
+        self._active_round = self._storage.load_active_round()
+
+    def save_state(self) -> None:
+        self._storage.save_active_round(self._active_round)
 
     def has_active_round(self) -> bool:
         return self._active_round is not None
@@ -30,6 +38,7 @@ class BattleManager:
 
         if self._active_round is None:
             self._active_round = BattleRound.create(channel_id=channel_id, user_id=user_id)
+            self.save_state()
             return BattleUpdateResult(
                 round_started=True,
                 current_leader_user_id=self._active_round.last_gif_user_id,
@@ -47,6 +56,7 @@ class BattleManager:
         self._active_round.last_activity_at = now
         self._active_round.last_gif_user_id = user_id
         self._active_round.participant_ids.add(user_id)
+        self.save_state()
 
         return BattleUpdateResult(
             round_started=False,
@@ -89,4 +99,5 @@ class BattleManager:
     def end_round(self) -> BattleRound | None:
         finished_round = self._active_round
         self._active_round = None
+        self.save_state()
         return finished_round

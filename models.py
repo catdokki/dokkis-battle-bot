@@ -22,3 +22,22 @@ class BattleRound:
             last_gif_user_id=user_id,
             participant_ids={user_id},
         )
+
+    def to_dict(self) -> dict:
+        return {
+            "channel_id": self.channel_id,
+            "started_at": self.started_at.isoformat(),
+            "last_activity_at": self.last_activity_at.isoformat(),
+            "last_gif_user_id": self.last_gif_user_id,
+            "participant_ids": sorted(self.participant_ids),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BattleRound":
+        return cls(
+            channel_id=int(data["channel_id"]),
+            started_at=datetime.fromisoformat(data["started_at"]),
+            last_activity_at=datetime.fromisoformat(data["last_activity_at"]),
+            last_gif_user_id=int(data["last_gif_user_id"]),
+            participant_ids={int(user_id) for user_id in data.get("participant_ids", [])},
+        )

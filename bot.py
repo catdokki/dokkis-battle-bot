@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from battle_manager import BattleManager
 from config import load_settings
 from gif_detector import message_contains_gif
+from storage import JsonStorage
 
 
 logging.basicConfig(
@@ -18,7 +19,8 @@ logging.basicConfig(
 logger = logging.getLogger("gif_battle_bot")
 
 settings = load_settings()
-battle_manager = BattleManager()
+storage = JsonStorage(settings.state_file_path)
+battle_manager = BattleManager(storage=storage)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -86,9 +88,24 @@ async def before_battle_expiry_loop() -> None:
 
 @bot.event
 async def on_ready() -> None:
+    battle_manager.load_state()
+
     logger.info("Logged in as %s (%s)", bot.user, bot.user.id if bot.user else "unknown")
     logger.info("Watching battle channel: %s", settings.battle_channel_id)
     logger.info("Battle timeout: %s seconds", settings.battle_timeout_seconds)
+    logger.info("State file: %s", settings.state_file_path)
+
+    active_round = battle_manager.get_active_round()
+    if active_round is None:
+        logger.info("No active round restored from disk.")
+    else:
+        logger.info(
+            "Restored active round | leader=%s | participants=%s | started_at=%s | last_activity_at=%s",
+            active_round.last_gif_user_id,
+            len(active_round.participant_ids),
+            active_round.started_at.isoformat(),
+            active_round.last_activity_at.isoformat(),
+        )
 
     if not battle_expiry_loop.is_running():
         battle_expiry_loop.start()
