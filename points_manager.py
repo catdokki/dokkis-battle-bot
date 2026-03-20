@@ -61,6 +61,11 @@ class PointsManager:
         self._stats_by_user_id: dict[int, UserStats] = {}
         self._level_config = level_config or LevelConfig()
 
+    def update_level_config(self, level_config: LevelConfig) -> None:
+        self._level_config = level_config
+        self._reconcile_all_levels()
+        self.save_state()
+
     def load_state(self) -> None:
         self._stats_by_user_id = self._storage.load_user_stats()
         self._reconcile_all_levels()
