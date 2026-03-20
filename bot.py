@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from battle_manager import BattleManager
 from config import load_settings
 from gif_detector import message_contains_gif
+from points_manager import PointsManager
 from storage import JsonStorage
 
 
@@ -19,8 +20,12 @@ logging.basicConfig(
 logger = logging.getLogger("gif_battle_bot")
 
 settings = load_settings()
-storage = JsonStorage(settings.state_file_path)
-battle_manager = BattleManager(storage=storage)
+
+battle_storage = JsonStorage(settings.state_file_path)
+user_stats_storage = JsonStorage(settings.user_stats_file_path)
+
+battle_manager = BattleManager(storage=battle_storage)
+points_manager = PointsManager(storage=user_stats_storage)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -46,6 +51,8 @@ async def announce_battle_winner() -> None:
     if finished_round is None:
         return
 
+    award_summary = points_manager.award_round_points(finished_round)
+
     channel = bot.get_channel(finished_round.channel_id)
     if channel is None:
         logger.warning("Could not find battle channel %s", finished_round.channel_id)
@@ -57,18 +64,25 @@ async def announce_battle_winner() -> None:
 
     winner_mention = f"<@{finished_round.last_gif_user_id}>"
     participant_count = len(finished_round.participant_ids)
+    winner_total = award_summary.stats_by_user_id[finished_round.last_gif_user_id].total_points
+    winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
     logger.info(
-        "Battle expired | winner=%s | participants=%s",
+        "Battle expired | winner=%s | participants=%s | winner_points_awarded=%s",
         finished_round.last_gif_user_id,
         participant_count,
+        winner_round_points,
     )
 
     await channel.send(
         f"🏁 GIF Battle over!\n"
         f"The channel went quiet long enough.\n"
         f"Winner: {winner_mention}\n"
-        f"Participants: {participant_count}"
+        f"Participants: {participant_count}\n\n"
+        f"**Points awarded this round**\n"
+        f"Winner earned: +{winner_round_points}\n"
+        f"Everyone who joined earned: +2\n\n"
+        f"{winner_mention} now has **{winner_total}** Chaos Points."
     )
 
 
@@ -89,11 +103,13 @@ async def before_battle_expiry_loop() -> None:
 @bot.event
 async def on_ready() -> None:
     battle_manager.load_state()
+    points_manager.load_state()
 
     logger.info("Logged in as %s (%s)", bot.user, bot.user.id if bot.user else "unknown")
     logger.info("Watching battle channel: %s", settings.battle_channel_id)
     logger.info("Battle timeout: %s seconds", settings.battle_timeout_seconds)
-    logger.info("State file: %s", settings.state_file_path)
+    logger.info("Battle state file: %s", settings.state_file_path)
+    logger.info("User stats file: %s", settings.user_stats_file_path)
 
     active_round = battle_manager.get_active_round()
     if active_round is None:
@@ -196,6 +212,39 @@ async def battle_status(ctx: commands.Context) -> None:
     )
 
 
+@bot.command(name="points")
+async def points(ctx: commands.Context, member: discord.Member | None = None) -> None:
+    target = member or ctx.author
+    stats = points_manager.get_user_stats(target.id)
+
+    await ctx.send(
+        f"📊 Stats for {target.mention}\n"
+        f"Chaos Points: **{stats.total_points}**\n"
+        f"Rounds Joined: **{stats.rounds_joined}**\n"
+        f"Rounds Won: **{stats.rounds_won}**"
+    )
+
+
+@bot.command(name="leaderboard")
+async def leaderboard(ctx: commands.Context) -> None:
+    leaderboard_rows = points_manager.get_leaderboard(limit=10)
+
+    if not leaderboard_rows:
+        await ctx.send("No Chaos Points yet. Start a battle.")
+        return
+
+    lines = []
+    for index, stats in enumerate(leaderboard_rows, start=1):
+        member = ctx.guild.get_member(stats.user_id)
+        display_name = member.mention if member else f"<@{stats.user_id}>"
+        lines.append(
+            f"{index}. {display_name} — {stats.total_points} pts "
+            f"(wins: {stats.rounds_won}, joined: {stats.rounds_joined})"
+        )
+
+    await ctx.send("🏆 Chaos Leaderboard\n" + "\n".join(lines))
+
+
 @bot.command(name="endbattle")
 @commands.has_permissions(manage_guild=True)
 async def end_battle(ctx: commands.Context) -> None:
@@ -209,13 +258,19 @@ async def end_battle(ctx: commands.Context) -> None:
         await ctx.send("No active battle to end.")
         return
 
+    award_summary = points_manager.award_round_points(finished_round)
+
     winner = ctx.guild.get_member(finished_round.last_gif_user_id)
     winner_name = winner.mention if winner else f"<@{finished_round.last_gif_user_id}>"
+    winner_total = award_summary.stats_by_user_id[finished_round.last_gif_user_id].total_points
+    winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
     await ctx.send(
         f"🏁 Battle ended manually.\n"
         f"Winner: {winner_name}\n"
-        f"Participants: {len(finished_round.participant_ids)}"
+        f"Participants: {len(finished_round.participant_ids)}\n"
+        f"Winner earned: +{winner_round_points}\n"
+        f"{winner_name} now has **{winner_total}** Chaos Points."
     )
 
 

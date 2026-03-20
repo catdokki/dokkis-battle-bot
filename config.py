@@ -13,6 +13,7 @@ class Settings:
     battle_channel_id: int
     battle_timeout_seconds: int
     state_file_path: str
+    user_stats_file_path: str
 
 
 def load_settings() -> Settings:
@@ -20,6 +21,7 @@ def load_settings() -> Settings:
     channel_id_raw = os.getenv("BATTLE_CHANNEL_ID", "").strip()
     timeout_raw = os.getenv("BATTLE_TIMEOUT_SECONDS", "").strip()
     state_file_path = os.getenv("STATE_FILE_PATH", "data/battle_state.json").strip()
+    user_stats_file_path = os.getenv("USER_STATS_FILE_PATH", "data/user_stats.json").strip()
 
     if not token:
         raise ValueError("Missing DISCORD_TOKEN in environment.")
@@ -46,9 +48,13 @@ def load_settings() -> Settings:
     if not state_file_path:
         raise ValueError("STATE_FILE_PATH cannot be empty.")
 
+    if not user_stats_file_path:
+        raise ValueError("USER_STATS_FILE_PATH cannot be empty.")
+
     return Settings(
         discord_token=token,
         battle_channel_id=channel_id,
         battle_timeout_seconds=timeout_seconds,
         state_file_path=state_file_path,
+        user_stats_file_path=user_stats_file_path,
     )

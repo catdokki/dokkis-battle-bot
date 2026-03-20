@@ -41,3 +41,28 @@ class BattleRound:
             last_gif_user_id=int(data["last_gif_user_id"]),
             participant_ids={int(user_id) for user_id in data.get("participant_ids", [])},
         )
+
+
+@dataclass
+class UserStats:
+    user_id: int
+    total_points: int = 0
+    rounds_joined: int = 0
+    rounds_won: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "user_id": self.user_id,
+            "total_points": self.total_points,
+            "rounds_joined": self.rounds_joined,
+            "rounds_won": self.rounds_won,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "UserStats":
+        return cls(
+            user_id=int(data["user_id"]),
+            total_points=int(data.get("total_points", 0)),
+            rounds_joined=int(data.get("rounds_joined", 0)),
+            rounds_won=int(data.get("rounds_won", 0)),
+        )
