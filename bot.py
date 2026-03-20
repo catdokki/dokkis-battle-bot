@@ -9,6 +9,7 @@ from battle_manager import BattleManager
 from config import load_settings
 from gif_detector import message_contains_gif
 from points_manager import PointsManager
+from role_manager import RoleManager
 from storage import JsonStorage
 
 
@@ -26,6 +27,7 @@ user_stats_storage = JsonStorage(settings.user_stats_file_path)
 
 battle_manager = BattleManager(storage=battle_storage)
 points_manager = PointsManager(storage=user_stats_storage)
+role_manager = RoleManager(champ_role_name=settings.champ_role_name)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -52,10 +54,7 @@ def emoji_to_key(emoji: discord.PartialEmoji | str) -> str:
     return str(emoji)
 
 
-def build_reaction_bonus_lines(
-    award_summary,
-    guild: discord.Guild | None,
-) -> str:
+def build_reaction_bonus_lines(award_summary, guild: discord.Guild | None) -> str:
     if not award_summary.reaction_bonus_by_user_id:
         return ""
 
@@ -94,6 +93,14 @@ async def announce_battle_winner() -> None:
     winner_total = award_summary.stats_by_user_id[finished_round.last_gif_user_id].total_points
     winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
+    champ_role_line = ""
+    champ_role, winner_member = await role_manager.assign_champ_role(
+        guild=channel.guild,
+        winner_user_id=finished_round.last_gif_user_id,
+    )
+    if champ_role is not None and winner_member is not None:
+        champ_role_line = f"\n👑 {winner_member.mention} now holds **{champ_role.name}**."
+
     logger.info(
         "Battle expired | winner=%s | participants=%s | winner_points_awarded=%s | streak=%s | reaction_bonus_users=%s",
         finished_round.last_gif_user_id,
@@ -123,6 +130,7 @@ async def announce_battle_winner() -> None:
         f"{streak_line}"
         f"{reaction_lines}"
         f"{winner_mention} now has **{winner_total}** Chaos Points."
+        f"{champ_role_line}"
     )
 
 
@@ -150,6 +158,7 @@ async def on_ready() -> None:
     logger.info("Battle timeout: %s seconds", settings.battle_timeout_seconds)
     logger.info("Battle state file: %s", settings.state_file_path)
     logger.info("User stats file: %s", settings.user_stats_file_path)
+    logger.info("Champ role name: %s", settings.champ_role_name)
 
     active_round = battle_manager.get_active_round()
     if active_round is None:
@@ -333,6 +342,17 @@ async def leaderboard(ctx: commands.Context) -> None:
     await ctx.send("🏆 Chaos Leaderboard\n" + "\n".join(lines))
 
 
+@bot.command(name="champ")
+async def champ(ctx: commands.Context) -> None:
+    role = discord.utils.get(ctx.guild.roles, name=settings.champ_role_name)
+    if role is None or not role.members:
+        await ctx.send(f"No current **{settings.champ_role_name}** yet.")
+        return
+
+    holder = role.members[0]
+    await ctx.send(f"👑 Current **{role.name}**: {holder.mention}")
+
+
 @bot.command(name="endbattle")
 @commands.has_permissions(manage_guild=True)
 async def end_battle(ctx: commands.Context) -> None:
@@ -353,6 +373,14 @@ async def end_battle(ctx: commands.Context) -> None:
     winner_total = award_summary.stats_by_user_id[finished_round.last_gif_user_id].total_points
     winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
+    champ_role_line = ""
+    champ_role, winner_member = await role_manager.assign_champ_role(
+        guild=ctx.guild,
+        winner_user_id=finished_round.last_gif_user_id,
+    )
+    if champ_role is not None and winner_member is not None:
+        champ_role_line = f"\n👑 {winner_member.mention} now holds **{champ_role.name}**."
+
     streak_line = ""
     if award_summary.streak_bonus_awarded:
         streak_line = (
@@ -372,6 +400,7 @@ async def end_battle(ctx: commands.Context) -> None:
         f"{winner_name} now has **{winner_total}** Chaos Points."
         f"{streak_line}"
         f"{reaction_lines}"
+        f"{champ_role_line}"
     )
 
 

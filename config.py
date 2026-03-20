@@ -14,6 +14,7 @@ class Settings:
     battle_timeout_seconds: int
     state_file_path: str
     user_stats_file_path: str
+    champ_role_name: str
 
 
 def load_settings() -> Settings:
@@ -22,6 +23,7 @@ def load_settings() -> Settings:
     timeout_raw = os.getenv("BATTLE_TIMEOUT_SECONDS", "").strip()
     state_file_path = os.getenv("STATE_FILE_PATH", "data/battle_state.json").strip()
     user_stats_file_path = os.getenv("USER_STATS_FILE_PATH", "data/user_stats.json").strip()
+    champ_role_name = os.getenv("CHAMP_ROLE_NAME", "GIF Battle Champ").strip()
 
     if not token:
         raise ValueError("Missing DISCORD_TOKEN in environment.")
@@ -51,10 +53,14 @@ def load_settings() -> Settings:
     if not user_stats_file_path:
         raise ValueError("USER_STATS_FILE_PATH cannot be empty.")
 
+    if not champ_role_name:
+        raise ValueError("CHAMP_ROLE_NAME cannot be empty.")
+
     return Settings(
         discord_token=token,
         battle_channel_id=channel_id,
         battle_timeout_seconds=timeout_seconds,
         state_file_path=state_file_path,
         user_stats_file_path=user_stats_file_path,
+        champ_role_name=champ_role_name,
     )
