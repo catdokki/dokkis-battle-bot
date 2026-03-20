@@ -68,11 +68,19 @@ async def announce_battle_winner() -> None:
     winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
     logger.info(
-        "Battle expired | winner=%s | participants=%s | winner_points_awarded=%s",
+        "Battle expired | winner=%s | participants=%s | winner_points_awarded=%s | streak=%s",
         finished_round.last_gif_user_id,
         participant_count,
         winner_round_points,
+        award_summary.winner_current_streak,
     )
+
+    streak_line = ""
+    if award_summary.streak_bonus_awarded:
+        streak_line = (
+            f"🔥 Streak bonus: +5\n"
+            f"Current streak: **{award_summary.winner_current_streak}** wins in a row\n\n"
+        )
 
     await channel.send(
         f"🏁 GIF Battle over!\n"
@@ -81,7 +89,8 @@ async def announce_battle_winner() -> None:
         f"Participants: {participant_count}\n\n"
         f"**Points awarded this round**\n"
         f"Winner earned: +{winner_round_points}\n"
-        f"Everyone who joined earned: +2\n\n"
+        f"Everyone who joined earned: +2\n"
+        f"{streak_line}"
         f"{winner_mention} now has **{winner_total}** Chaos Points."
     )
 
@@ -221,7 +230,9 @@ async def points(ctx: commands.Context, member: discord.Member | None = None) ->
         f"📊 Stats for {target.mention}\n"
         f"Chaos Points: **{stats.total_points}**\n"
         f"Rounds Joined: **{stats.rounds_joined}**\n"
-        f"Rounds Won: **{stats.rounds_won}**"
+        f"Rounds Won: **{stats.rounds_won}**\n"
+        f"Current Win Streak: **{stats.current_win_streak}**\n"
+        f"Best Win Streak: **{stats.best_win_streak}**"
     )
 
 
@@ -239,7 +250,7 @@ async def leaderboard(ctx: commands.Context) -> None:
         display_name = member.mention if member else f"<@{stats.user_id}>"
         lines.append(
             f"{index}. {display_name} — {stats.total_points} pts "
-            f"(wins: {stats.rounds_won}, joined: {stats.rounds_joined})"
+            f"(wins: {stats.rounds_won}, streak: {stats.current_win_streak}, best: {stats.best_win_streak})"
         )
 
     await ctx.send("🏆 Chaos Leaderboard\n" + "\n".join(lines))
@@ -265,12 +276,20 @@ async def end_battle(ctx: commands.Context) -> None:
     winner_total = award_summary.stats_by_user_id[finished_round.last_gif_user_id].total_points
     winner_round_points = award_summary.points_awarded_by_user_id[finished_round.last_gif_user_id]
 
+    streak_line = ""
+    if award_summary.streak_bonus_awarded:
+        streak_line = (
+            f"\n🔥 Streak bonus: +5"
+            f"\nCurrent streak: **{award_summary.winner_current_streak}**"
+        )
+
     await ctx.send(
         f"🏁 Battle ended manually.\n"
         f"Winner: {winner_name}\n"
         f"Participants: {len(finished_round.participant_ids)}\n"
         f"Winner earned: +{winner_round_points}\n"
         f"{winner_name} now has **{winner_total}** Chaos Points."
+        f"{streak_line}"
     )
 
 

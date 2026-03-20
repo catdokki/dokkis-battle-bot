@@ -49,6 +49,8 @@ class UserStats:
     total_points: int = 0
     rounds_joined: int = 0
     rounds_won: int = 0
+    current_win_streak: int = 0
+    best_win_streak: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -56,6 +58,8 @@ class UserStats:
             "total_points": self.total_points,
             "rounds_joined": self.rounds_joined,
             "rounds_won": self.rounds_won,
+            "current_win_streak": self.current_win_streak,
+            "best_win_streak": self.best_win_streak,
         }
 
     @classmethod
@@ -65,4 +69,6 @@ class UserStats:
             total_points=int(data.get("total_points", 0)),
             rounds_joined=int(data.get("rounds_joined", 0)),
             rounds_won=int(data.get("rounds_won", 0)),
+            current_win_streak=int(data.get("current_win_streak", 0)),
+            best_win_streak=int(data.get("best_win_streak", 0)),
         )
