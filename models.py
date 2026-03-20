@@ -132,6 +132,8 @@ class BattleRound:
 class UserStats:
     user_id: int
     total_points: int = 0
+    total_xp: int = 0
+    level: int = 1
     rounds_joined: int = 0
     rounds_won: int = 0
     current_win_streak: int = 0
@@ -141,6 +143,8 @@ class UserStats:
         return {
             "user_id": self.user_id,
             "total_points": self.total_points,
+            "total_xp": self.total_xp,
+            "level": self.level,
             "rounds_joined": self.rounds_joined,
             "rounds_won": self.rounds_won,
             "current_win_streak": self.current_win_streak,
@@ -152,6 +156,8 @@ class UserStats:
         return cls(
             user_id=int(data["user_id"]),
             total_points=int(data.get("total_points", 0)),
+            total_xp=int(data.get("total_xp", 0)),
+            level=max(1, int(data.get("level", 1))),
             rounds_joined=int(data.get("rounds_joined", 0)),
             rounds_won=int(data.get("rounds_won", 0)),
             current_win_streak=int(data.get("current_win_streak", 0)),
