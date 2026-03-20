@@ -314,6 +314,11 @@ async def sync_commands() -> None:
     try:
         if settings.guild_id is not None:
             guild_object = discord.Object(id=settings.guild_id)
+
+            # Copy globally-declared commands into the guild command tree
+            # so they appear immediately in this server.
+            bot.tree.copy_global_to(guild=guild_object)
+
             synced = await bot.tree.sync(guild=guild_object)
             logger.info("Synced %s app commands to guild %s", len(synced), settings.guild_id)
         else:
