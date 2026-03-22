@@ -17,6 +17,7 @@ class RuntimeConfigData:
     win_xp: int
     streak_bonus_xp: int
     reaction_xp_per_bonus_point: int
+    takeover_xp: int
     level_base_xp: int
     level_step_xp: int
 
@@ -32,6 +33,7 @@ class RuntimeConfig:
             win_xp=defaults.win_xp,
             streak_bonus_xp=defaults.streak_bonus_xp,
             reaction_xp_per_bonus_point=defaults.reaction_xp_per_bonus_point,
+            takeover_xp=defaults.takeover_xp,
             level_base_xp=defaults.level_base_xp,
             level_step_xp=defaults.level_step_xp,
         )
@@ -65,6 +67,7 @@ class RuntimeConfig:
             win_xp=self.data.win_xp,
             streak_bonus_xp=self.data.streak_bonus_xp,
             reaction_xp_per_bonus_point=self.data.reaction_xp_per_bonus_point,
+            takeover_xp=self.data.takeover_xp,
             level_base_xp=self.data.level_base_xp,
             level_step_xp=self.data.level_step_xp,
         )

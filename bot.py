@@ -172,6 +172,7 @@ def build_admin_config_embed() -> discord.Embed:
     embed.add_field(name="Champ Role", value=data.champ_role_name, inline=True)
     embed.add_field(name="Participation XP", value=str(data.participation_xp), inline=True)
     embed.add_field(name="Win XP", value=str(data.win_xp), inline=True)
+    embed.add_field(name="Takeover XP", value=str(data.takeover_xp), inline=True)
     embed.add_field(name="Streak Bonus XP", value=str(data.streak_bonus_xp), inline=True)
     embed.add_field(name="Reaction XP / Point", value=str(data.reaction_xp_per_bonus_point), inline=True)
     embed.add_field(name="Level Base XP", value=str(data.level_base_xp), inline=True)
@@ -237,6 +238,33 @@ def build_round_summary_embed(
         ),
         inline=False,
     )
+    return embed
+
+def build_level_up_embed(member: discord.Member, old_level: int, new_level: int, xp_earned: int) -> discord.Embed:
+    progress = points_manager.get_level_progress(member.id)
+    meter = level_meter(progress.progress_percent)
+
+    embed = discord.Embed(
+        title="🎉 Level Up!",
+        description=f"{member.mention} just leveled up in the middle of the GIF battle!",
+        color=discord.Color.gold(),
+    )
+    embed.timestamp = discord.utils.utcnow()
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    embed.add_field(name="Battler", value=member.display_name, inline=True)
+    embed.add_field(name="Level", value=f"**{old_level} → {new_level}**", inline=True)
+    embed.add_field(name="Takeover XP", value=f"**+{xp_earned} XP**", inline=True)
+    embed.add_field(
+        name="Progress",
+        value=(
+            f"`{meter}`\n"
+            f"{progress.xp_into_level}/{progress.xp_needed_for_next_level} XP to next level\n"
+            f"Total XP: **{progress.total_xp}**"
+        ),
+        inline=False,
+    )
+    embed.set_footer(text="Chaos is growing.")
     return embed
 
 
@@ -411,6 +439,27 @@ async def on_message(message: discord.Message) -> None:
             result.participant_count,
             message.id,
         )
+
+        if result.leader_changed:
+            live_xp = points_manager.award_takeover_xp(message.author.id)
+            logger.info(
+                "Takeover XP awarded | user_id=%s | xp=%s | old_level=%s | new_level=%s",
+                message.author.id,
+                live_xp.xp_earned,
+                live_xp.old_level,
+                live_xp.new_level,
+            )
+
+            if live_xp.leveled_up and isinstance(message.channel, discord.TextChannel) and isinstance(message.author, discord.Member):
+                await message.channel.send(
+                    embed=build_level_up_embed(
+                        member=message.author,
+                        old_level=live_xp.old_level,
+                        new_level=live_xp.new_level,
+                        xp_earned=live_xp.xp_earned,
+                    )
+                )
+
         if isinstance(message.channel, discord.TextChannel):
             await upsert_battle_status_message(message.channel)
 
@@ -647,6 +696,7 @@ async def admin_config_show(interaction: discord.Interaction) -> None:
         app_commands.Choice(name="champ_role_name", value="champ_role_name"),
         app_commands.Choice(name="participation_xp", value="participation_xp"),
         app_commands.Choice(name="win_xp", value="win_xp"),
+        app_commands.Choice(name="takeover_xp", value="takeover_xp"),
         app_commands.Choice(name="streak_bonus_xp", value="streak_bonus_xp"),
         app_commands.Choice(name="reaction_xp_per_bonus_point", value="reaction_xp_per_bonus_point"),
         app_commands.Choice(name="level_base_xp", value="level_base_xp"),
@@ -659,6 +709,7 @@ async def admin_config_set(interaction: discord.Interaction, setting: app_comman
         "battle_timeout_seconds",
         "participation_xp",
         "win_xp",
+        "takeover_xp",
         "streak_bonus_xp",
         "reaction_xp_per_bonus_point",
         "level_base_xp",
