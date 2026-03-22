@@ -35,6 +35,7 @@ points_manager = PointsManager(
         win_xp=settings.win_xp,
         streak_bonus_xp=settings.streak_bonus_xp,
         reaction_xp_per_bonus_point=settings.reaction_xp_per_bonus_point,
+        takeover_xp=settings.takeover_xp,
         level_base_xp=settings.level_base_xp,
         level_step_xp=settings.level_step_xp,
     ),
@@ -363,25 +364,51 @@ async def finalize_battle_round(*, finished_round, guild: discord.Guild | None, 
         await role_manager.assign_champ_role(guild, finished_round.last_gif_user_id)
     return build_round_summary_embed(finished_round, award_summary, guild=guild, manual_end=manual_end)
 
+async def close_active_round_and_announce(
+    *,
+    channel: discord.TextChannel,
+    manual_end: bool,
+) -> discord.Embed | None:
+    active_round = battle_manager.get_active_round()
+    if active_round is None:
+        return None
+
+    status_message_id = active_round.status_message_id
+    finished_round = battle_manager.end_round()
+    if finished_round is None:
+        return None
+
+    await clear_battle_status_message(channel, status_message_id)
+    summary_embed = await finalize_battle_round(
+        finished_round=finished_round,
+        guild=channel.guild,
+        manual_end=manual_end,
+    )
+    await channel.send(embed=summary_embed)
+    return summary_embed
+
+async def close_expired_round_if_needed(channel: discord.TextChannel) -> bool:
+    if not battle_manager.has_active_round():
+        return False
+
+    if not battle_manager.is_round_expired(current_timeout_seconds()):
+        return False
+
+    await close_active_round_and_announce(channel=channel, manual_end=False)
+    return True
+
 
 async def announce_battle_winner() -> None:
     active_round = battle_manager.get_active_round()
     if active_round is None:
         return
 
-    status_message_id = active_round.status_message_id
-    finished_round = battle_manager.end_round()
-    if finished_round is None:
-        return
-
-    channel = bot.get_channel(finished_round.channel_id)
+    channel = bot.get_channel(active_round.channel_id)
     if channel is None or not isinstance(channel, discord.TextChannel):
-        logger.warning("Could not find battle text channel %s", finished_round.channel_id)
+        logger.warning("Could not find battle text channel %s", active_round.channel_id)
         return
 
-    await clear_battle_status_message(channel, status_message_id)
-    summary_embed = await finalize_battle_round(finished_round=finished_round, guild=channel.guild, manual_end=False)
-    await channel.send(embed=summary_embed)
+    await close_active_round_and_announce(channel=channel, manual_end=False)
 
 
 @tasks.loop(seconds=30)
@@ -425,6 +452,9 @@ async def on_message(message: discord.Message) -> None:
         return
 
     if message.channel.id == settings.battle_channel_id and message_contains_gif(message):
+        if isinstance(message.channel, discord.TextChannel):
+            await close_expired_round_if_needed(message.channel)
+
         result = battle_manager.handle_gif_message(
             channel_id=message.channel.id,
             user_id=message.author.id,
