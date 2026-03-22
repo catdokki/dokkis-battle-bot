@@ -20,6 +20,7 @@ class Settings:
     win_xp: int
     streak_bonus_xp: int
     reaction_xp_per_bonus_point: int
+    takeover_xp: int
     level_base_xp: int
     level_step_xp: int
 
@@ -76,6 +77,7 @@ def load_settings() -> Settings:
     win_xp = _get_int("WIN_XP", 50)
     streak_bonus_xp = _get_int("STREAK_BONUS_XP", 20)
     reaction_xp_per_bonus_point = _get_int("REACTION_XP_PER_BONUS_POINT", 2)
+    takeover_xp = _get_int("TAKEOVER_XP", 5)
     level_base_xp = _get_int("LEVEL_BASE_XP", 100)
     level_step_xp = _get_int("LEVEL_STEP_XP", 50)
 
@@ -91,6 +93,7 @@ def load_settings() -> Settings:
         win_xp=win_xp,
         streak_bonus_xp=streak_bonus_xp,
         reaction_xp_per_bonus_point=reaction_xp_per_bonus_point,
+        takeover_xp=takeover_xp,
         level_base_xp=level_base_xp,
         level_step_xp=level_step_xp,
     )

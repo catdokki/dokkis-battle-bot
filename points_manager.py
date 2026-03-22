@@ -19,6 +19,7 @@ class LevelConfig:
     win_xp: int = 50
     streak_bonus_xp: int = 20
     reaction_xp_per_bonus_point: int = 2
+    takeover_xp: int = 5
     level_base_xp: int = 100
     level_step_xp: int = 50
 
@@ -53,6 +54,16 @@ class RoundAwardSummary:
     streak_bonus_awarded: bool
     winner_current_streak: int
     reaction_bonus_by_user_id: dict[int, int]
+
+@dataclass
+class LiveXpAwardResult:
+    user_id: int
+    xp_earned: int
+    old_level: int
+    new_level: int
+    leveled_up: bool
+    stats: UserStats
+    progress: UserLevelProgress
 
 
 class PointsManager:
@@ -242,3 +253,24 @@ class PointsManager:
                 stats.user_id,
             ),
         )[:limit]
+
+    def award_takeover_xp(self, user_id: int) -> LiveXpAwardResult:
+        stats = self.get_or_create_user_stats(user_id)
+        old_level = stats.level
+        xp_amount = self._level_config.takeover_xp
+
+        self._award_xp(user_id, xp_amount)
+        self.save_state()
+
+        updated_stats = self.get_or_create_user_stats(user_id)
+        progress = self.get_level_progress(user_id)
+
+        return LiveXpAwardResult(
+            user_id=user_id,
+            xp_earned=xp_amount,
+            old_level=old_level,
+            new_level=updated_stats.level,
+            leveled_up=updated_stats.level > old_level,
+            stats=updated_stats,
+            progress=progress,
+        )
