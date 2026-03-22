@@ -612,18 +612,17 @@ async def endbattle_slash(interaction: discord.Interaction) -> None:
         await interaction.response.send_message("No active battle to end.", ephemeral=True)
         return
 
-    status_message_id = active_round.status_message_id
-    finished_round = battle_manager.end_round()
-    if finished_round is None:
+    channel = interaction.channel
+    if not isinstance(channel, discord.TextChannel):
+        await interaction.response.send_message("This command must be used in a text channel.", ephemeral=True)
+        return
+
+    summary_embed = await close_active_round_and_announce(channel=channel, manual_end=True)
+    if summary_embed is None:
         await interaction.response.send_message("No active battle to end.", ephemeral=True)
         return
 
-    channel = interaction.channel
-    if isinstance(channel, discord.TextChannel):
-        await clear_battle_status_message(channel, status_message_id)
-
-    summary_embed = await finalize_battle_round(finished_round=finished_round, guild=interaction.guild, manual_end=True)
-    await interaction.response.send_message(embed=summary_embed)
+    await interaction.response.send_message("Battle ended.", ephemeral=True)
 
 
 @bot.command(name="ping")
@@ -677,17 +676,14 @@ async def endbattle_prefix(ctx: commands.Context) -> None:
         await ctx.send("No active battle to end.")
         return
 
-    status_message_id = active_round.status_message_id
-    finished_round = battle_manager.end_round()
-    if finished_round is None:
-        await ctx.send("No active battle to end.")
+    if not isinstance(ctx.channel, discord.TextChannel):
+        await ctx.send("This command must be used in a text channel.")
         return
 
-    if isinstance(ctx.channel, discord.TextChannel):
-        await clear_battle_status_message(ctx.channel, status_message_id)
-
-    summary_embed = await finalize_battle_round(finished_round=finished_round, guild=ctx.guild, manual_end=True)
-    await ctx.send(embed=summary_embed)
+    summary_embed = await close_active_round_and_announce(channel=ctx.channel, manual_end=True)
+    if summary_embed is None:
+        await ctx.send("No active battle to end.")
+        return
 
 
 @endbattle_prefix.error
